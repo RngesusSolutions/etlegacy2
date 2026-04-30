@@ -1923,7 +1923,7 @@ int G_TeamCount(gentity_t *ent, int weap)
 			// weapon they intend to spawn with. Previously both fields were
 			// checked unconditionally, which caused a stale playerWeapon
 			// (only synced at spawn time in ClientSpawn) to permanently
-			// "latch" a weapon slot across map changes — see issue #3375.
+			// "latch" a weapon slot across map changes
 			if (level.clients[j].ps.pm_flags & PMF_LIMBO
 			    || level.clients[j].ps.pm_type == PM_DEAD
 			    || level.clients[j].sess.sessionTeam == TEAM_SPECTATOR)
