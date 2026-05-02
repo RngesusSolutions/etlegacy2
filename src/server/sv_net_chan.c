@@ -36,22 +36,25 @@
 #include "../qcommon/qcommon.h"
 #include "server.h"
 
-// Per-client cap on queued outgoing netchan messages. Worst-case gamestate is
-// ~18KB, so 32 entries bound a single client to ~576KB of zone usage; with
-// MAX_CLIENTS=64 that stays well under the 64MB main zone (DEF_COMZONEMEGS).
-// Hitting the cap means the client is not draining fragments and the queue is
-// growing unboundedly: drop them rather than fail Z_Malloc, which is fatal.
+/**
+ * @def MAX_NETCHAN_QUEUE
+ * @brief Per-client cap on queued outgoing netchan messages. Worst-case gamestate is
+ * ~18KB, so 32 entries bound a single client to ~576KB of zone usage; with
+ * MAX_CLIENTS=64 that stays well under the 64MB main zone (DEF_COMZONEMEGS).
+ * Hitting the cap means the client is not draining fragments and the queue is
+ * growing unboundedly: drop them rather than fail Z_Malloc, which is fatal.
+ */
 #define MAX_NETCHAN_QUEUE 32
 
 /**
-* @brief SV_Netchan_Encode
-* @param[in] client
-* @param[in,out] msg
-* @param[in,out] commandString
-*
-* @note first four bytes of the data are always:
-* long reliableAcknowledge;
-*/
+ * @brief SV_Netchan_Encode
+ * @param[in] client
+ * @param[in,out] msg
+ * @param[in,out] commandString
+ *
+ * @note first four bytes of the data are always:
+ * long reliableAcknowledge;
+ */
 static void SV_Netchan_Encode(client_t *client, msg_t *msg, char *commandString)
 {
 	long     i, index;
@@ -64,7 +67,7 @@ static void SV_Netchan_Encode(client_t *client, msg_t *msg, char *commandString)
 		return;
 	}
 
-// NOTE: saving pos, reading reliableAck, restoring, not using it .. useless?
+	// NOTE: saving pos, reading reliableAck, restoring, not using it .. useless?
 	srdc = msg->readcount;
 	sbit = msg->bit;
 	soob = msg->oob;
@@ -81,11 +84,11 @@ static void SV_Netchan_Encode(client_t *client, msg_t *msg, char *commandString)
 
 	string = (byte *)commandString;
 	index  = 0;
-// xor the client challenge with the netchan sequence number
+	// xor the client challenge with the netchan sequence number
 	key = client->challenge ^ client->netchan.outgoingSequence;
 	for (i = SV_ENCODE_START; i < msg->cursize; i++)
 	{
-// modify the key with the last received and with this message acknowledged client command
+		// modify the key with the last received and with this message acknowledged client command
 		if (!string[index])
 		{
 			index = 0;
@@ -94,21 +97,21 @@ static void SV_Netchan_Encode(client_t *client, msg_t *msg, char *commandString)
 		key ^= string[index] << (i & 1);
 
 		index++;
-// encode the data with this key
+		// encode the data with this key
 		*(msg->data + i) = *(msg->data + i) ^ key;
 	}
 }
 
 /**
-* @brief SV_Netchan_Decode
-* @param[in] client
-* @param[in,out] msg
-*
-* @note first 12 bytes of the data are always:
-* long serverId;
-* long messageAcknowledge;
-* long reliableAcknowledge;
-*/
+ * @brief SV_Netchan_Decode
+ * @param[in] client
+ * @param[in,out] msg
+ *
+ * @note first 12 bytes of the data are always:
+ * long serverId;
+ * long messageAcknowledge;
+ * long reliableAcknowledge;
+ */
 static void SV_Netchan_Decode(client_t *client, msg_t *msg)
 {
 	int      serverId, messageAcknowledge, reliableAcknowledge;
@@ -134,7 +137,7 @@ static void SV_Netchan_Decode(client_t *client, msg_t *msg)
 	key = client->challenge ^ serverId ^ messageAcknowledge;
 	for (i = msg->readcount + SV_DECODE_START; i < msg->cursize; i++)
 	{
-// modify the key with the last sent and acknowledged server command
+		// modify the key with the last sent and acknowledged server command
 		if (!string[index])
 		{
 			index = 0;
@@ -148,15 +151,15 @@ static void SV_Netchan_Decode(client_t *client, msg_t *msg)
 		key ^= string[index] << (i & 1);
 
 		index++;
-// decode the data with this key
+		// decode the data with this key
 		*(msg->data + i) = *(msg->data + i) ^ key;
 	}
 }
 
 /**
-* @brief SV_Netchan_ClearQueue
-* @param[in,out] client
-*/
+ * @brief SV_Netchan_ClearQueue
+ * @param[in,out] client
+ */
 void SV_Netchan_ClearQueue(client_t *client)
 {
 	netchan_buffer_t *netbuf, *next;
@@ -172,9 +175,9 @@ void SV_Netchan_ClearQueue(client_t *client)
 }
 
 /**
-* @brief SV_Netchan_TransmitNextInQueue
-* @param[in,out] client
-*/
+ * @brief SV_Netchan_TransmitNextInQueue
+ * @param[in,out] client
+ */
 void SV_Netchan_TransmitNextInQueue(client_t *client)
 {
 	netchan_buffer_t *netbuf;
@@ -186,7 +189,7 @@ void SV_Netchan_TransmitNextInQueue(client_t *client)
 
 	Netchan_Transmit(&client->netchan, netbuf->msg.cursize, netbuf->msg.data);
 
-// pop from queue
+	// pop from queue
 	client->netchan_start_queue = netbuf->next;
 	if (!client->netchan_start_queue)
 	{
@@ -202,10 +205,10 @@ void SV_Netchan_TransmitNextInQueue(client_t *client)
 }
 
 /**
-* @brief SV_Netchan_TransmitNextFragment
-* @param[in] client
-* @return
-*/
+ * @brief SV_Netchan_TransmitNextFragment
+ * @param[in] client
+ * @return
+ */
 int SV_Netchan_TransmitNextFragment(client_t *client)
 {
 	if (client->netchan.unsentFragments)
@@ -223,10 +226,10 @@ int SV_Netchan_TransmitNextFragment(client_t *client)
 }
 
 /**
-* @brief SV_WriteBinaryMessage
-* @param[in] msg
-* @param[in,out] cl
-*/
+ * @brief SV_WriteBinaryMessage
+ * @param[in] msg
+ * @param[in,out] cl
+ */
 static void SV_WriteBinaryMessage(msg_t *msg, client_t *cl)
 {
 	if (!cl->binaryMessageLength)
@@ -248,15 +251,15 @@ static void SV_WriteBinaryMessage(msg_t *msg, client_t *cl)
 }
 
 /**
-* @brief SV_Netchan_Transmit
-*
-* @details If there are some unsent fragments (which may happen if the snapshots
-* and the gamestate are fragmenting, and collide on send for instance)
-* then buffer them and make sure they get sent in correct order
-*
-* @param[in,out] client
-* @param[in] msg
-*/
+ * @brief SV_Netchan_Transmit
+ *
+ * @details If there are some unsent fragments (which may happen if the snapshots
+ * and the gamestate are fragmenting, and collide on send for instance)
+ * then buffer them and make sure they get sent in correct order
+ *
+ * @param[in,out] client
+ * @param[in] msg
+ */
 void SV_Netchan_Transmit(client_t *client, msg_t *msg)
 {
 	MSG_WriteByte(msg, svc_EOF);
@@ -293,11 +296,11 @@ void SV_Netchan_Transmit(client_t *client, msg_t *msg)
 		netbuf->msgBuffer                  = ((byte *)netbuf) + netSize;
 		netbuf->lastClientCommandString    = (char *)(((byte *)netbuf) + (netSize + msg->cursize));
 		netbuf->lastClientCommandString[0] = '\0';
-// store the msg, we can't store it encoded, as the encoding depends on stuff we still have to finish sending
+		// store the msg, we can't store it encoded, as the encoding depends on stuff we still have to finish sending
 		MSG_Copy(&netbuf->msg, netbuf->msgBuffer, msg->cursize, msg);
 		Q_strncpyz(netbuf->lastClientCommandString, client->lastClientCommandString, cmdLen);
 		netbuf->next = NULL;
-// insert it in the queue, the message will be encoded and sent later
+		// insert it in the queue, the message will be encoded and sent later
 		*client->netchan_end_queue = netbuf;
 		client->netchan_end_queue  = &(*client->netchan_end_queue)->next;
 	}
@@ -309,11 +312,11 @@ void SV_Netchan_Transmit(client_t *client, msg_t *msg)
 }
 
 /**
-* @brief SV_Netchan_Process
-* @param[in] client
-* @param[in] msg
-* @return
-*/
+ * @brief SV_Netchan_Process
+ * @param[in] client
+ * @param[in] msg
+ * @return
+ */
 qboolean SV_Netchan_Process(client_t *client, msg_t *msg)
 {
 	int ret = Netchan_Process(&client->netchan, msg);
